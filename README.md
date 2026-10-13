@@ -1,3 +1,7 @@
+<img src="./docs/assets/melspace-hero.jpg" alt="일출이 지구 지평선을 넘는 궤도 위 위성과 텔레메트리 그래프 — 신호를 읽고 이상을 찾다. AI 생성 콘셉트 이미지이며 실제 위성·운용 화면이 아님" width="100%" />
+
+<sub>AI 생성 콘셉트 이미지입니다. 실제 위성, NASA 자료 사진, 운용 화면이 아닙니다.</sub>
+
 # MelSpace
 
 > 가칭 Space Telemetry Lab. 공개 NASA 우주선 텔레메트리로 이상 구간 탐지 방법을 비교하는 학습형 프로젝트.
