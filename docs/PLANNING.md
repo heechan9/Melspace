@@ -38,7 +38,7 @@
 
 | 필요한 기능 | 가져올 곳 | 확인한 내용 |
 |---|---|---|
-| **단순 기준선 탐지기** | FabGuard `src/fabguard/spc.py` | 앞부분(기준 구간)만으로 중심선·이동범위를 계산해 관리한계(±3σ 추정)를 **고정**하고, 이후 값을 `within/above/below/unknown`으로 판정. 기준 구간 자체에 한계 밖 값이 있으면 `baseline_review_required`. 결측은 정상으로 처리하지 않고 `unknown`. 한계 목록을 결과에 동봉 → **첫 기준선 후보로 가장 직접적** |
+| **단순 기준선 탐지기** | FabGuard `src/fabguard/spc.py` | 앞부분(기준 구간)만으로 중심선·이동범위를 계산해 관리한계(±3σ 추정)를 **고정**하고, 이후 값을 `within/above/below/unknown`으로 판정. 기준 구간 자체에 한계 밖 값이 있으면 `baseline_review_required`. 결측은 정상으로 처리하지 않고 `unknown`. 한계 목록을 결과에 동봉 → **첫 기준선 후보로 가장 직접적.** 단, 그대로는 못 씀: NumPy 숫자 거부, 행 번호 1부터·기준 구간만큼 밀림, 기준 구간에 한계 밖 값이 있으면 이후 전부 판정 보류 → `REUSE_ADAPTATION.md` V1-4 |
 | 거리 기반 범위 판정 | Bunkering `research/fuel_source_review/condition_diagnostics.py` | train만으로 표준화·k-NN 거리 95% 분위 임계값 설정, test 임계값 조정 없음 → 두 번째 비교 방법 후보 |
 | 누수 없는 시간 분할 | Bunkering `train_consumption.py`, FabGuard `data.time_holdout` | 시간순 train/val/test + 경계 간격 제거, 같은 시각이 경계를 넘지 않게 조정, 겹침 assert |
 | 검증셋으로만 선택 + 대조군 | Bunkering `train_consumption.py` | 후보는 검증 MAE로만 선택, `train_mean` 대조군과 같이 보고 |
@@ -53,12 +53,14 @@
 |---|---|---|
 | 방법 간 공정 비교 강제 | Bunkering `evaluation/contract.py` | 방법마다 사례(seed·설정)가 다르면 실행 거부 |
 | 평가 대상 채널 고정 | Judicial `cohort_freeze.py` | 대상 목록을 결과 전에 해시로 잠그고, 바꾸려면 새 버전·사유 필요 |
+| 원 연구 평가 규칙과의 차이 | telemanom `detector.py` | 탐지 구간 하나가 실제 구간 여러 개와 겹쳐도 원 코드는 첫 번째만 TP → MelSpace 규칙과 다르므로 두 결과 병기 |
 | 원 연구 수치와 비교 구분 | Judicial `comparison_guard.py` | "비교 불가"와 "비교 가능하지만 다름" 분리 |
-| 분포 변화 점검 | FabGuard `advanced_evaluation.py` (`population_stability_index`, `walk_forward_slices`, `bootstrap_top_k_interval`) | train↔test 분포 차이(PSI), 확장 창 walk-forward, 부트스트랩 구간 |
+| 분포 변화 점검 | FabGuard `advanced_evaluation.py` (`population_stability_index`, `walk_forward_slices`, `bootstrap_top_k_interval`) | train↔test 분포 차이(PSI), 확장 창 walk-forward, 부트스트랩 구간. PSI는 기준이 상수·비교가 전부 결측일 때 0.0을 반환하는 경계 문제가 있어 결측률을 따로 보고해야 함 |
 | 부분 실행을 완료로 보고하지 않기 | Adversarial `verification/iterative_result_audit.py` | 일부만 실행된 결과는 전체 PASS가 될 수 없음 → 82채널 중 일부 실패 시 |
 | 중복·누수 감사 | Adversarial `verification/local_split_audit.py` | 분할 간 완전 중복 탐지(읽기 전용) |
 | 로컬 재현 vs 외부 검증 구분 | Adversarial `verification/status_registry.py`, `stage_b_run.py` | 해시로 묶인 근거에서 상태 생성, 환경 간 저장 라벨 비교 |
-| 문서 수치 교차 감사 | Adversarial `src/adversarial_ai/audit/cross_doc.py`, `paper_claims.py`; Judicial `claim_audit.py` | README 수치가 결과 CSV·JSON과 다르면 실패 |
+| 문서 수치 교차 감사 | Adversarial `src/adversarial_ai/audit/cross_doc.py`, `paper_claims.py` | README 수치가 결과 CSV·JSON과 다르면 실패 |
+| 주장 메타데이터 관리 | Judicial `claim_audit.py` | 주장마다 근거 참조·검증 수준이 있는지만 확인. 파일을 열거나 수치를 비교하지 않음 → 수치 대조 도구로 쓰지 않음 |
 | 원본 변경 감지 | TriGuard `scripts/source_manifest.py` | 검토한 기준 대비 파일 추가·삭제·변경 판정 |
 | 업로드 방어 | TriGuard `modules/upload_security.py` | 웹에서 사용자 CSV를 받을 경우 크기·바이너리 차단 |
 | 웹 데이터 생성·검증 | AU Job Atlas `scripts/build-app-data.ts`, `src/data/schema.ts`(zod), `npm run check` | 결과 JSON을 스키마로 검증하고, 생성 파일이 원본과 다르면 실패 |
