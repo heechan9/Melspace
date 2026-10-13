@@ -15,12 +15,12 @@ train과 test의 스케일 기준이 다르면 **train으로 정한 임계값이
 
 | # | 원본 | 그대로 가져올 부분 | 바꿀 부분 | 새 저장소 위치(예정) |
 |---|---|---|---|---|
-| V1-0 | FabGuard `advanced_evaluation.population_stability_index` | 기준 분포의 분위 구간으로 두 분포 차이를 수치화 | 입력을 SECOM 변수 → 채널 첫 열의 train vs test 값으로. 판정이 아니라 **진단 기록**으로만 사용 | `src/diagnostics.py` |
+| V1-0 | FabGuard `advanced_evaluation.population_stability_index` | 기준 분포의 분위 구간으로 두 분포 차이를 수치화 | 입력을 SECOM 변수 → 채널 첫 열의 train vs test 값으로. 판정이 아니라 **진단 기록**으로만 사용. **경계 수정 필요:** 원 함수는 기준이 상수이고 비교가 전부 결측이면 0.0을 반환함(결측 변화 누락) → 결측률을 별도 필수 지표로 보고하고, 기준이 상수면 PSI를 0이 아닌 "정의 불가"로 기록. PSI 값으로 스케일 일치를 증명하지 않음 | `src/diagnostics.py` |
 | V1-1 | FabGuard `config.ExperimentConfig` | `frozen=True` dataclass로 설정을 결과 전에 선언 | 필드를 `channel_id`, `validation_fraction`, `gap`, `sigma_multiplier`, `method`로 교체 | `src/config.py` |
 | V1-2 | FabGuard `data.OFFICIAL_HASHES`, `validate_raw_files` | 파일 SHA-256 대조 | 공식 해시가 없으므로 **첫 다운로드 때 계산한 값**을 기록하고 "공식 해시 아님"으로 표기. 대상: 선택 채널 train/test `.npy`, `labeled_anomalies.csv` | `src/data.py`, `data/HASHES.json` |
 | V1-3 | Bunkering `train_consumption.py` 분할부 | 시간순 분할 + 경계 간격 + 겹침 `assert` | train/test는 이미 파일로 나뉘어 있음 → **train 끝 일부를 검증 구간**으로 떼고, 간격(`gap`)은 창 길이만큼. test 파일은 건드리지 않음 | `src/data.py` |
-| V1-4 | FabGuard `spc.individuals_report` | 기준 구간으로 중심선·이동범위·관리한계를 계산해 **고정**, 이후 값 판정, 결측은 `unknown`, 기준 구간 내 한계 밖 값 → `baseline_review_required` | ① 입력: CSV(timestamp,value) → `.npy` 첫 열 + **시점 인덱스**(실제 시각 없음) ② 기준 구간 = V1-3의 train 부분 ③ 판정 결과를 **연속 구간(시작·끝)**으로 묶는 함수 추가 ④ `baseline_review_required`가 뜨면 멈추지 말고 기록 후 진행할지 규칙 결정 필요 | `src/baselines/spc.py` |
-| V1-5 | telemanom `detector.evaluate_sequences` (Apache 2.0) | "한 시점이라도 겹치면 포착, 실제 구간당 1회" 규칙 | 새로 작성하고 출처 명시. **탐지 지연** 추가(시점 인덱스). FP·FN 분모를 결과에 같이 기록 | `src/metrics.py` |
+| V1-4 | FabGuard `spc.individuals_report` | 기준 구간으로 중심선·이동범위·관리한계를 계산해 **고정**, 이후 값 판정, 결측은 `unknown`, 기준 구간 내 한계 밖 값 → `baseline_review_required` | ① 입력: CSV(timestamp,value) → `.npy` 첫 열 + **시점 인덱스**(실제 시각 없음). 원 함수는 Python `int`·`float`만 받고 NumPy `float32/float64`는 거부함 → 로더에서 `float()`로 변환, NaN은 `None`(→ `unknown`)으로 바꾸고 개수 기록 ② 기준 구간 = V1-3의 train 부분 ③ 원 함수의 `row`는 **1부터** 시작하고 기준 구간 길이만큼 밀려 있음 → test 인덱스 = `row − baseline_count − 1`(기준 구간 뒤에 test를 이어 붙인 경우)로 변환한 뒤 라벨과 비교, 변환을 테스트로 고정 ④ 판정 결과를 **연속 구간(시작·끝)**으로 묶는 함수 추가 ⑤ 기준 구간에 한계 밖 값이 하나라도 있으면 원 함수는 이후 **모든** 값을 `baseline_review_required`로 둠 → 그 실행은 **평가 불가**로 표시, "이상 없음"으로 세지 않음. 탐색용 판정이 필요하면 별도 파일에 "탐색용, 평가 제외"로만 저장 | `src/baselines/spc.py` |
+| V1-5 | telemanom `detector.evaluate_sequences` (Apache 2.0) | "한 시점이라도 겹치면 포착, 실제 구간당 1회" 규칙 | 새로 작성하고 출처 명시. **원 코드와 규칙이 다름:** 원 코드는 탐지 구간이 실제 구간 여러 개와 겹쳐도 첫 번째만 TP로 셈(`detector.py`의 `true_seq_index[0]`). MelSpace는 겹친 실제 구간을 모두 포착으로 셈 → 두 규칙 결과를 함께 보고하고 "원 코드와 동일"이라고 쓰지 않음. 시점 단위 정밀도·재현율 추가. **탐지 지연** 추가(시점 인덱스). FP·FN 분모를 결과에 같이 기록 | `src/metrics.py` |
 | V1-6 | Judicial `baseline_guard.freeze_baseline` | 설정을 정렬된 JSON으로 만들어 SHA-256 고정, 이후 비교 | 필수 필드를 `config`, `data_hashes`, `label_row`로 교체. **test 평가 직전에** 고정 파일 생성, 평가 후 일치 확인 | `src/freeze.py`, `results/<run>/frozen.json` |
 | V1-7 | Judicial `quarantine` | 지우지 않고 격리 + 이력 | 라벨 CSV `P-2` 중복 2행을 격리 기록. V1에서는 P-2를 첫 채널로 고르지 않아 영향 회피 | `data/label_issues.json` |
 | V1-8 | Bunkering `train_consumption.py`의 `metadata` | 결과 JSON에 입력 해시·버전·`limitations` 동봉 | 한계 문구를 텔레메트리용으로: 익명 채널, 시각 없음, test 기준 스케일링, 원 연구와 임계값 방식 다름 | `results/<run>/summary.json` |
@@ -49,7 +49,7 @@ train과 test의 스케일 기준이 다르면 **train으로 정한 임계값이
 | V3-1 | FabGuard `scripts/build_web_evidence.py` + `web/` | 저장된 결과만 읽어 웹 데이터 생성, 모델 재실행 없음 | 채널·방법 선택, 시계열 + 실제 구간 음영 + 탐지 구간 |
 | V3-2 | AU Job Atlas `src/data/schema.ts`(zod), `npm run check` | 웹 데이터 스키마 검증, 생성 파일 불일치 시 실패 | 스키마를 공고 → 채널 결과로 |
 | V3-3 | Judicial `comparison_guard` | "비교 불가"와 "비교 가능하지만 다름" 분리 | 원 연구 수치(정밀도 87.5% 등)는 "임계값 방식이 달라 직접 비교 불가"로 표시 |
-| V3-4 | Adversarial `audit/cross_doc`, Judicial `claim_audit` | 문서 수치 ↔ 결과 파일 교차 확인 | README·웹의 수치를 `summary.json`과 대조 |
+| V3-4 | Adversarial `audit/cross_doc`(수치 대조), Judicial `claim_audit`(주장 관리) | `claim_audit`은 주장마다 근거 참조와 검증 수준이 붙어 있는지만 확인하고, **참조 파일을 열거나 수치를 비교하지 않음**(없는 파일을 근거로 줘도 PASS 가능) | 주장 목록 관리에는 `claim_audit` 방식을 쓰고, README·웹 수치 ↔ `summary.json` 대조는 **별도로 구현**(근거 파일 존재·해시·값 비교 포함) |
 
 ---
 
@@ -61,6 +61,6 @@ train과 test의 스케일 기준이 다르면 **train으로 정한 임계값이
 
 ## 첫 세션 전에 정할 것
 
-1. V1-4의 `baseline_review_required` 처리 규칙 (train 안에 한계 밖 값이 있을 때)
+1. ~~V1-4의 `baseline_review_required` 처리 규칙~~ → 결정: 평가 불가로 표시, 집계 제외(2026-10-13, Codex 검토 반영)
 2. 검증 구간 비율과 `gap` 길이
 3. 탐지 구간을 만들 때 최소 길이를 둘지 (두면 오경보는 줄지만 짧은 point 이상을 놓침)
